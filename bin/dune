@@ -1,0 +1,4 @@
+(executable
+ (public_name convoLib.main)
+ (name main)
+ (libraries convoLib))

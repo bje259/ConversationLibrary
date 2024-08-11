@@ -1,0 +1,8 @@
+(library
+ (name convoLib)
+ (public_name convoLib)
+ (preprocess (pps ppx_deriving.show ppx_import ppx_variants_conv ppx_disable_unused_warnings ppx_let ppx_typerep_conv refl.ppx ppx_deriving_yojson))
+ (libraries core core_unix core_unix.time_float_unix ppx_deriving_yojson.runtime yojson agrid flex-array utop atd ppx_disable_unused_warnings refl ppx_let ppx_import ppx_variants_conv ppx_deriving.show fmt notty notty.unix atdgen atdgen-runtime)
+ (flags
+  (:standard -warn-error -A)))
+
