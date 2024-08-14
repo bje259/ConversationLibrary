@@ -5,9 +5,10 @@ open Core_unix
 open Yojson
 module Time = Time_float_unix
 open NtyGrid
-open NtyGrid.ArrayArrayGrid
 open Notty
 open Notty_unix
+open CoreLib
+open CoreLib.Funcs
 
 let getJsonFile file = Yojson.Basic.from_file file
 let jsonLmtdFull = getJsonFile "./lib/outAllLmtd2.json"
@@ -95,134 +96,134 @@ module JsonUtis = struct
     formatted_date
 end
 
-module Test = struct
-  type ('a, 'b) state = {
-    grid : 'a;
-    gridE : 'b;
-    debugMsg : string;
-    lastInput : string;
-    (* layout : ('a, 'b) state -> 'a * ('a, 'b) state; *)
-    grid_module : (module GridType with type cell_type = 'b and type t = 'a);
-    ui_module : (module MAKE_UI);
-    layout : ('a, 'b) state -> 'a;
-  }
-
-  let pfUI =
-    (module Make_PrintfUI ((
-      ArrayArrayGrid :
-        GridType with type cell_type = string and type t = string array array))
-    : UI)
-
-  let create_init_state : 'b -> 'c -> ('a, 'b) state =
-   fun gridE uim : (string array array, string) state ->
-    let grid = [| [| gridE |] |] in
-    let grid_module =
-      (module ArrayArrayGrid : GridType
-        with type cell_type = string
-         and type t = string array array)
-    in
-    let open ArrayArrayGrid.Infix in
-    let layout s = s.grid <-> s.grid <|> (s.grid <-> s.grid) in
-    let layout s = s.grid in
-    let debugMsg = "" in
-    let lastInput = "" in
-    (* let ui_module = (module Make_PrintfUI : MAKE_UI) in *)
-    let ui_module = (module Make_NtyUI : MAKE_UI) in
-    { grid; gridE; debugMsg; lastInput; grid_module; ui_module; layout }
-
-  let initial_state = create_init_state (String.make 50 'a') pfUI
-
-  module InitSt : STATE with type t = (string array array, string) state =
-  struct
-    type t = (string array array, string) state
-
-    let initial_state = initial_state
-  end
-
-  module StMonad = StateMonad ((
-    InitSt : STATE with type t = (string array array, string) state))
-
-  let add_debug_msg (msg : string) (s : StMonad.state) : StMonad.state =
-    { s with debugMsg = msg }
-
-  let set_grid new_grid (s : StMonad.state) : StMonad.state =
-    { s with grid = new_grid }
-
-  let add_to_layout new_grid s =
-    { s with layout = Base.Fn.compose new_grid s.layout }
-
-  let display_ui s =
-    let module Grd =
-      (val s.grid_module
-          : GridType
-          with type cell_type = string
-           and type t = string array array)
-    in
-    let module UI = (val s.ui_module) (Grd) in
-    let composite_grid = s.layout s in
-    UI.showUI composite_grid
-
-  let test () =
-    let program =
-      let open StMonad in
-      let* a = modify (add_debug_msg "Starting layout") in
-      a |> set_grid [| [| "1"; "2" |]; [| "3"; "4" |] |] |> fun s ->
-      let () = display_ui s in
-      return s
-    in
-    let calc, _ = StMonad.calculate program in
-    let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in
-    let module UI = Make_PrintfUI (ArrayArrayGrid) in
-    UI.showUI calc.grid
-
-  let test2 () =
-    let program =
-      let open StMonad in
-      let* a = modify (add_debug_msg "Starting layout") in
-      a |> fun s ->
-      { s with ui_module = (module Make_NtyUI : MAKE_UI) }
-      |> set_grid [| [| "1"; "2" |]; [| "3"; "4" |] |]
-      |> fun s ->
-      let () = display_ui s in
-      return s
-    in
-    let calc, _ = StMonad.calculate program in
-    let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in
-    let module UI = Make_PrintfUI (ArrayArrayGrid) in
-    UI.showUI calc.grid
-
-  let printGrd grd () =
-    let program =
-      let open StMonad in
-      let open Infix in
-      let open StMonad in
-      let initGrid = grd in
-      let* a = modify (add_debug_msg "Starting layout") in
-      fun s ->
-        let () = display_ui s in
-        (a, s)
-    in
-    let calc, _ = StMonad.calculate program in
-    let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in
-    let module UI = Make_PrintfUI (ArrayArrayGrid) in
-    UI.showUI calc.grid
-
-  let printGrd2 grd () =
-    let program =
-      let open StMonad in
-      let initGrid = grd in
-      let* a = modify (add_debug_msg "Starting layout") in
-      a |> fun s ->
-      { s with ui_module = (module Make_NtyUI : MAKE_UI) } |> set_grid initGrid
-      |> fun s ->
-      let () = display_ui s in
-      return s
-    in
-    let calc, _ = StMonad.calculate program in
-    let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in
-    let module UI = Make_PrintfUI (ArrayArrayGrid) in
-    UI.showUI calc.grid
-end
+(* module Test = struct *)
+(*   type ('a, 'b) state = { *)
+(*     grid : 'a; *)
+(*     gridE : 'b; *)
+(*     debugMsg : string; *)
+(*     lastInput : string; *)
+(*     (* layout : ('a, 'b) state -> 'a * ('a, 'b) state; *) *)
+(*     grid_module : (module GridType with type cell_type = 'b and type t = 'a); *)
+(*     ui_module : (module MAKE_UI); *)
+(*     layout : ('a, 'b) state -> 'a; *)
+(*   } *)
+(**)
+(*   let pfUI = *)
+(*     (module Make_PrintfUI (( *)
+(*       ArrayArrayGrid : *)
+(*         GridType with type cell_type = string and type t = string array array)) *)
+(*     : UI) *)
+(**)
+(*   let create_init_state : 'b -> 'c -> ('a, 'b) state = *)
+(*    fun gridE uim : (string array array, string) state -> *)
+(*     let grid = [| [| gridE |] |] in *)
+(*     let grid_module = *)
+(*       (module ArrayArrayGrid : GridType *)
+(*         with type cell_type = string *)
+(*          and type t = string array array) *)
+(*     in *)
+(*     let open ArrayArrayGrid.Infix in *)
+(*     let layout s = s.grid <-> s.grid <|> (s.grid <-> s.grid) in *)
+(*     let layout s = s.grid in *)
+(*     let debugMsg = "" in *)
+(*     let lastInput = "" in *)
+(*     (* let ui_module = (module Make_PrintfUI : MAKE_UI) in *) *)
+(*     let ui_module = (module Make_NtyUI : MAKE_UI) in *)
+(*     { grid; gridE; debugMsg; lastInput; grid_module; ui_module; layout } *)
+(**)
+(*   let initial_state = create_init_state (String.make 50 'a') pfUI *)
+(**)
+(*   module InitSt : STATE with type t = (string array array, string) state = *)
+(*   struct *)
+(*     type t = (string array array, string) state *)
+(**)
+(*     let initial_state = initial_state *)
+(*   end *)
+(**)
+(*   module StMonad = StateMonad (( *)
+(*     InitSt : STATE with type t = (string array array, string) state)) *)
+(**)
+(*   let add_debug_msg (msg : string) (s : StMonad.state) : StMonad.state = *)
+(*     { s with debugMsg = msg } *)
+(**)
+(*   let set_grid new_grid (s : StMonad.state) : StMonad.state = *)
+(*     { s with grid = new_grid } *)
+(**)
+(*   let add_to_layout new_grid s = *)
+(*     { s with layout = Base.Fn.compose new_grid s.layout } *)
+(**)
+(*   let display_ui s = *)
+(*     let module Grd = *)
+(*       (val s.grid_module *)
+(*           : GridType *)
+(*           with type cell_type = string *)
+(*            and type t = string array array) *)
+(*     in *)
+(*     let module UI = (val s.ui_module) (Grd) in *)
+(*     let composite_grid = s.layout s in *)
+(*     UI.showUI composite_grid *)
+(**)
+(*   let test () = *)
+(*     let program = *)
+(*       let open StMonad in *)
+(*       let* a = modify (add_debug_msg "Starting layout") in *)
+(*       a |> set_grid [| [| "1"; "2" |]; [| "3"; "4" |] |] |> fun s -> *)
+(*       let () = display_ui s in *)
+(*       return s *)
+(*     in *)
+(*     let calc, _ = StMonad.calculate program in *)
+(*     let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in *)
+(*     let module UI = Make_PrintfUI (ArrayArrayGrid) in *)
+(*     UI.showUI calc.grid *)
+(**)
+(*   let test2 () = *)
+(*     let program = *)
+(*       let open StMonad in *)
+(*       let* a = modify (add_debug_msg "Starting layout") in *)
+(*       a |> fun s -> *)
+(*       { s with ui_module = (module Make_NtyUI : MAKE_UI) } *)
+(*       |> set_grid [| [| "1"; "2" |]; [| "3"; "4" |] |] *)
+(*       |> fun s -> *)
+(*       let () = display_ui s in *)
+(*       return s *)
+(*     in *)
+(*     let calc, _ = StMonad.calculate program in *)
+(*     let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in *)
+(*     let module UI = Make_PrintfUI (ArrayArrayGrid) in *)
+(*     UI.showUI calc.grid *)
+(**)
+(*   let printGrd grd () = *)
+(*     let program = *)
+(*       let open StMonad in *)
+(*       let open Infix in *)
+(*       let open StMonad in *)
+(*       let initGrid = grd in *)
+(*       let* a = modify (add_debug_msg "Starting layout") in *)
+(*       fun s -> *)
+(*         let () = display_ui s in *)
+(*         (a, s) *)
+(*     in *)
+(*     let calc, _ = StMonad.calculate program in *)
+(*     let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in *)
+(*     let module UI = Make_PrintfUI (ArrayArrayGrid) in *)
+(*     UI.showUI calc.grid *)
+(**)
+(*   let printGrd2 grd () = *)
+(*     let program = *)
+(*       let open StMonad in *)
+(*       let initGrid = grd in *)
+(*       let* a = modify (add_debug_msg "Starting layout") in *)
+(*       a |> fun s -> *)
+(*       { s with ui_module = (module Make_NtyUI : MAKE_UI) } |> set_grid initGrid *)
+(*       |> fun s -> *)
+(*       let () = display_ui s in *)
+(*       return s *)
+(*     in *)
+(*     let calc, _ = StMonad.calculate program in *)
+(*     let () = Fmt.pr "Final debug message: %s\n" calc.debugMsg in *)
+(*     let module UI = Make_PrintfUI (ArrayArrayGrid) in *)
+(*     UI.showUI calc.grid *)
+(* end *)
 
 (* function getConversationMessages(conversation) { *)
 (*     var messages = []; *)
