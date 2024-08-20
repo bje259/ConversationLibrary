@@ -57,7 +57,7 @@ let create_init_state json : mainState =
   let recList = read_conversations json in
   let convSumm = getConvSummList () in
   let sel_id, grid2 =
-    List.nth recList 0 |> function
+    safeGet 0 recList |> function
     | Some x ->
         ( Some x.id,
           Option.value ~default:[| [| "None found" |] |]

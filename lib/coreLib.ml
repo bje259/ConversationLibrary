@@ -15,7 +15,7 @@ type messageContentB = {
 type conversationRec = {
   title : string;
   dateRange : string;
-  messages : messageContentB list;
+  messages : messageContentB array;
   id : string;
 }
 
@@ -28,7 +28,7 @@ let defMessageContentB =
   }
 
 let defConRec =
-  { title = "empty"; dateRange = ""; messages = []; id = "unknown" }
+  { title = "empty"; dateRange = ""; messages = [||]; id = "unknown" }
 
 let getJsonFile file = Yojson.Basic.from_file file
 let jsonLmtdFull = getJsonFile "./lib/outAllLmtd2.json"
@@ -184,7 +184,7 @@ type mainState = {
   rightState : sAryAry_state;
   combinedLayout : Notty.I.t -> bool -> unit -> I.t;
   mutable term : Term.t;
-  recList : conversationRec list; (* gridE : string; *)
+  recList : conversationRec array; (* gridE : string; *)
   mutable searchPrompt : string;
   mutable popupImg : I.t;
   mutable show_searchUI : bool;
@@ -344,9 +344,9 @@ module Funcs = struct
       Fmt.pr "Timestamp: %s \nAuthor: %s\nMessage: %s \n" recIn.timestampB
         recIn.authorB recIn.messageB
 
-    let messageRecordsBS (recordsIn : messageContentB list) =
+    let messageRecordsBS (recordsIn : messageContentB array) =
       (* List.iter recordsIn ~f:(fun x -> printMessageRecordB x ()) *)
-      List.fold recordsIn ~init:[| [||] |] ~f:(fun acc x ->
+      Array.fold recordsIn ~init:[| [||] |] ~f:(fun acc x ->
           let msgList = String.split ~on:'\n' x.messageB in
           let msgArray = Array.of_list msgList in
           let conc =
@@ -367,7 +367,7 @@ module Funcs = struct
       Fmt.pr "Title: %s\n" recIn.title;
       Fmt.pr "Date Range: %s\n" recIn.dateRange;
       Fmt.pr "Id: %s\n" recIn.id;
-      List.iter recIn.messages ~f:(fun x -> messageRecordB x ())
+      Array.iter recIn.messages ~f:(fun x -> messageRecordB x ())
 
     let conRecGrd (recIn : conversationRec) =
       let title = [| [| Fmt.str "Title: %s" recIn.title |] |] in
@@ -398,8 +398,8 @@ module Funcs = struct
         ]
     (* |> fun x -> [| x |] *)
 
-    let conRecSummGrd (recsIn : conversationRec list) =
-      let recs = List.map recsIn ~f:(fun x -> conRecSum x) in
+    let conRecSummGrd (recsIn : conversationRec array) =
+      let recs = List.map (List.of_array recsIn) ~f:(fun x -> conRecSum x) in
       let recs = Array.concat recs in
       let recs = Array.map recs ~f:(fun x -> [| x |]) in
       let outputa =
@@ -412,6 +412,14 @@ module Funcs = struct
 
   let run = function Some x -> x | None -> failwith "no value"
   let prettyString jsn = Yojson.Basic.to_string jsn |> Yojson.Basic.prettify
+
+  let safeGet i arr =
+    try Some arr.(i)
+    with ex ->
+      Stdlib.print_string (Exn.to_string ex);
+      None
+
+  let safeGet2 arr i = safeGet i arr
 
   let historyLength json =
     let jsonList = to_list json in
@@ -481,7 +489,8 @@ module Funcs = struct
     let messages =
       conversationJson
       |> extract_list_field "messages" []
-      |> List.map ~f:(fun msg ->
+      |> Array.of_list
+      |> Array.map ~f:(fun msg ->
              let timestampraw = extract_float_field msg "timestamp" 0. in
              let timestamp = convert_unix_timestamp timestampraw in
              let min_time, max_time = !min_max_ref in
@@ -516,7 +525,8 @@ module Funcs = struct
             let messages, (dateMin, dateMax) = read_messages conv in
             let id = extract_string_field "id" defConRec.id conv in
             { title; dateRange = dateMin ^ " - " ^ dateMax; messages; id })
-    | _ -> [ defConRec ]
+        |> Array.of_list
+    | _ -> [| defConRec |]
 
   let within_inc_range n ~min ~max = n >= min && n <= max
 
@@ -605,17 +615,19 @@ module Funcs = struct
       match idx with
       | None -> recs
       | Some idx ->
-          let messages = List.nth recs.messages idx |> run in
-          { recs with messages = [ messages ] }
+          let messages = safeGet idx recs.messages |> run in
+          { recs with messages = [| messages |] }
     in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
       run
         (match n with
         | None -> Some messageRecords
-        | Some n -> run (List.nth messageRecords n) |> fun x -> Some [ x ])
+        | Some n -> run (safeGet n messageRecords) |> fun x -> Some [| x |])
     in
-    let limitRecords = List.map limitRecords ~f:(fun x -> limitMessagesF x m) in
+    let limitRecords =
+      Array.map limitRecords ~f:(fun x -> limitMessagesF x m)
+    in
     (* let () = List.iter limitRecords ~f:(fun x -> printConRec x ()) in *)
     limitRecords
 
@@ -623,8 +635,8 @@ module Funcs = struct
     let jsonInput = getJsonFile "./lib/outAllLmtd2.json" in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
-      List.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
-      |> List.hd
+      Array.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
+      |> safeGet 0
     in
     conRec (run limitRecords) ()
 
@@ -634,21 +646,22 @@ module Funcs = struct
       match idx with
       | None -> recs
       | Some idx ->
-          let messages = List.nth recs.messages idx |> run in
-          { recs with messages = [ messages ] }
+          let messages = safeGet2 recs.messages idx |> run in
+          { recs with messages = [| messages |] }
     in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
       run
         (match n with
         | None -> Some messageRecords
-        | Some n -> run (List.nth messageRecords n) |> fun x -> Some [ x ])
+        | Some n -> run (safeGet2 messageRecords n) |> fun x -> Some [| x |])
     in
     let limitMessages =
-      List.map limitRecords ~f:(fun x -> limitMessagesF x m)
+      Array.map limitRecords ~f:(fun x -> limitMessagesF x m)
     in
     pFunc
-      (List.map limitMessages ~f:(fun elm -> conRecGrd elm) |> Array.concat)
+      (Array.map limitMessages ~f:(fun elm -> conRecGrd elm)
+      |> Array.to_list |> Array.concat)
       ()
 
   let recGetGrd ?n ?m () =
@@ -657,27 +670,28 @@ module Funcs = struct
       match idx with
       | None -> recs
       | Some idx ->
-          let messages = List.nth recs.messages idx |> run in
-          { recs with messages = [ messages ] }
+          let messages = safeGet2 recs.messages idx |> run in
+          { recs with messages = [| messages |] }
     in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
       run
         (match n with
         | None -> Some messageRecords
-        | Some n -> run (List.nth messageRecords n) |> fun x -> Some [ x ])
+        | Some n -> run (safeGet2 messageRecords n) |> fun x -> Some [| x |])
     in
     let limitMessages =
-      List.map limitRecords ~f:(fun x -> limitMessagesF x m)
+      Array.map limitRecords ~f:(fun x -> limitMessagesF x m)
     in
-    List.map limitMessages ~f:(fun elm -> conRecGrd elm) |> Array.concat
+    Array.map limitMessages ~f:(fun elm -> conRecGrd elm)
+    |> Array.to_list |> Array.concat
 
   let recordGetByIPGrd i ~pFunc () =
     let jsonInput = getJsonFile "./lib/outAllLmtd2.json" in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
-      List.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
-      |> List.hd
+      Array.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
+      |> safeGet 0
     in
     (* let limitMessages = *)
     (*   match m with *)
@@ -692,8 +706,8 @@ module Funcs = struct
     let jsonInput = getJsonFile "./lib/outAllLmtd2.json" in
     let messageRecords = read_conversations jsonInput in
     let limitRecords =
-      List.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
-      |> List.hd
+      Array.filter messageRecords ~f:(fun elm -> String.equal elm.id i)
+      |> safeGet 0
     in
     Some (conRecGrd (run limitRecords))
 
@@ -701,7 +715,7 @@ module Funcs = struct
     let adjSelLine = s.leftState.top_line + s.leftState.sel_line in
     let recIdx = adjSelLine / 3 in
     let selIdx =
-      List.nth s.recList recIdx |> function
+      safeGet recIdx s.recList |> function
       | Some x when not updGrd ->
           let () = s.leftState.sel_id <- Some x.id in
           Some x.id
@@ -740,6 +754,27 @@ module Funcs = struct
     else (
       main_state.leftState.is_active <- true;
       main_state.rightState.is_active <- false)
+
+  let getSearchTokens str = String.split str ~on:' '
+
+  let containsAllTokens (tokens : string list) (convo : conversationRec) : bool
+      =
+    let contains_token token =
+      Array.exists convo.messages ~f:(fun msg ->
+          String.is_substring msg.messageB ~substring:token)
+    in
+    List.for_all tokens ~f:contains_token
+
+  let filterConvByQuery query convos =
+    let tokens = getSearchTokens query in
+    let f i conv =
+      match containsAllTokens tokens conv with
+      | true -> Some (i, conv)
+      | false -> None
+    in
+    let tuples = Array.mapi convos ~f |> Array.filter_opt in
+    let indices, filtered_convos = Array.unzip tuples in
+    (indices, filtered_convos)
 end
 
 (* let testPrGr grd = *)
